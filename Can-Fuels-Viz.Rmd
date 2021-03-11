@@ -1,7 +1,7 @@
 ---
 title: "Can-Fuels-Viz"
 author: "Canadian Forest Service Fire Danger Group"
-date: "3/10/2021"
+date: "`r format(Sys.time(), '%B %d %Y')`"
 output:
   pdf_document: default
   html_document: default
@@ -11,46 +11,67 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(RCurl)
+library(RColorBrewer)
 
 ### interim URL to read csv from github repository for reproducibility:
 NFI_sites <- read.csv("https://raw.githubusercontent.com/thompsdk/Can-Fuels-Viz/main/NFI_sites.csv")
 NFI_sites_con <- NFI_sites[which(NFI_sites$ltp_con_pct>0.60),] ### sites with >60% large tree conifer fraction
 
 ### next: load FBP tabular dataset by fuel type for benchmarking
+
+###load up the NFI colour scheme by genus
+
+# PINU #4fb897ff
+# THUJ #295794ff
+# TSUG #518b9aff
+# PSEU #6d1920ff
+# PICE #628040ff
+# ABIE #1e3c42ff
+# ACER #c86b83ff
+# BETU #bc9ebaff
+
+NFI_colours<- c("#1e3c42ff", "#c86b83ff", "#bc9ebaff", "#cadc83ff", "#cadc83ff", "#cadc83ff", "#cadc83ff", "#cadc83ff", "#628040ff", "#4fb897ff", "bb94bdff", "#6d1920ff", "#cadc83ff", "#cadc83ff", "#cadc83ff", "#295794ff", "#cadc83ff", "#518b9aff", "#cadc83ff", "#cadc83ff")
+
+names(NFI_colours) <- levels(as.factor(NFI_sites$Dom_ltp_gen))[2:21] ### exclude NA from this
+
+NFIScale_fill <- scale_fill_manual(name = "Dom_ltp_gen",values = NFI_colours)
+NFIScale_colour <- scale_colour_manual(name = "Dom_ltp_gen",values = NFI_colours)
+
+
 ```
 
-A survey of fuel structural metrics visualizations from the Canadian National Forest Inventory
+A survey of fuel structural metrics visualizations from the Canadian National Forest Inventory, now using the colour scheme by genera from the State of the Forest Report (https://cfs.nrcan.gc.ca/publications?id=40222)
 
-```{r plots, echo=FALSE}
+```{r plots, echo=FALSE, message=FALSE, warning=FALSE}
 
 ### Plot 0a: crown fuel load by genus boxplots
 
-CFL_genus <- ggplot(NFI_sites_con, aes(Dom_ltp_gen,CFL)) + geom_boxplot() + ylab("Crown Fuel Load (kg m-2)") + xlab("dominant genus by NFI ground plot")
-CFL_genus
+CFL_genus <- ggplot(NFI_sites_con, aes(x=Dom_ltp_gen,y=CFL, fill=Dom_ltp_gen)) + geom_boxplot() + ylab("Crown Fuel Load (kg m-2)") + xlab("dominant genus by NFI ground plot") 
+CFL_genus + NFIScale_fill
 
 ### plot 0b: Overstory Canopy Base Height boxplots
-CBH_genus <- ggplot(NFI_sites_con, aes(Dom_ltp_gen,LoreyCBH)) + geom_boxplot() + ylab("Canopy Base Height of Overstorey (Lorey-weighted) (m)") + xlab("dominant genus by NFI ground plot")
-CBH_genus
+CBH_genus <- ggplot(NFI_sites_con, aes(x=Dom_ltp_gen,y=LoreyCBH,fill=Dom_ltp_gen)) + geom_boxplot() + ylab("Canopy Base Height of Overstorey (Lorey-weighted) (m)") + xlab("dominant genus by NFI ground plot")
+CBH_genus + NFIScale_fill
 
 
 ### plot 0c: relative CBH boxplots by genus
-CBH_H_genus <- ggplot(NFI_sites_con, aes(Dom_ltp_gen,LoreyCBH/site_height)) + geom_boxplot() + ylab("Normalized Canopy Base Height as a fraction of stand height") + xlab("dominant genus by NFI ground plot")
-CBH_H_genus
+CBH_H_genus <- ggplot(NFI_sites_con, aes(x=Dom_ltp_gen,y=LoreyCBH/site_height,fill=Dom_ltp_gen)) + geom_boxplot() + ylab("Normalized Canopy Base Height as a fraction of stand height") + xlab("dominant genus by NFI ground plot")
+CBH_H_genus + NFIScale_fill
 
 ### plot 0d: ratio of understory (all_stp_fuels_kg_m2) fuels to CFL
-UFL_CFL_genus <- ggplot(NFI_sites_con, aes(Dom_ltp_gen,all_stp_fuels_kg_m2/CFL)) + geom_boxplot() + ylab("ratio of understory (stems <7cm dbh) to overstory (>7cm) canopy fuel load") + xlab("dominant genus by NFI ground plot") + coord_cartesian(ylim=c(0,1.5))
-UFL_CFL_genus
+UFL_CFL_genus <- ggplot(NFI_sites_con[which(NFI_sites$CFL>0.3),],aes(x=Dom_ltp_gen,y=all_stp_fuels_kg_m2/CFL,fill=Dom_ltp_gen)) + geom_boxplot() + ylab("ratio of understory (stems <7cm dbh) to overstory \n (>7cm) canopy fuel load where CFL > 0.3 kg m-2") + xlab("dominant genus by NFI ground plot") + coord_cartesian(ylim=c(0,1.5))
+UFL_CFL_genus + NFIScale_fill
 
 ### Plot 1: Crown Fuel Load and overstory Crown Base Height
 LoCBH_CFL <- ggplot(NFI_sites_con, aes(CFL, LoreyCBH)) + geom_point(aes(colour = factor(Dom_ltp_gen))) + scale_x_sqrt(limits=c(0,13), breaks=0:13, expand=c(0,0)) 
-LoCBH_CFL
+LoCBH_CFL + NFIScale_colour
 
 ### Plot 2: Plot 1, but for selected conifer groups, with 80% data MCP polygons drawn:
 NFI_sites_select <- NFI_sites[which(NFI_sites$Dom_ltp_gen=="ABIE" | NFI_sites$Dom_ltp_gen=="PICE" | NFI_sites$Dom_ltp_gen=="PINU" | NFI_sites$Dom_ltp_gen=="PSEU"),]
 
 ### but also, given CFL, show the mass flow rate of 3.0 kg m-2 min-1 somehow?
 LoCBH_CFL_genus <- ggplot(NFI_sites_select, aes(CFL, LoreyCBH)) + geom_point(aes(colour = factor(Dom_ltp_gen))) + scale_x_sqrt(limits=c(0,10), breaks=0:13, expand=c(0,0)) + geom_density_2d(contour_var = "ndensity",breaks=c(0.20)) + facet_wrap(vars(Dom_ltp_gen))
-LoCBH_CFL_genus
+LoCBH_CFL_genus + NFIScale_colour
 
 ### 
 
